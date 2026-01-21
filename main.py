@@ -21,7 +21,7 @@ API_HASH = os.getenv('TELEGRAM_API_HASH')
 SESSION_NAME = 'draft_bot_session'
 
 # Configuration
-MARKER = "\n__________<<<"
+MARKER = "\n<<<"
 AUTOSQUASH_ENABLED = False
 # Lock to prevent race conditions per chat
 CHAT_LOCKS = collections.defaultdict(asyncio.Lock)
