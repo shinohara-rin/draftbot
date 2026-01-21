@@ -21,7 +21,7 @@ API_HASH = os.getenv('TELEGRAM_API_HASH')
 SESSION_NAME = 'draft_bot_session'
 
 # Configuration
-MARKER = "\n>here<"
+MARKER = "\n__________<<<"
 AUTOSQUASH_ENABLED = False
 # Lock to prevent race conditions per chat
 CHAT_LOCKS = collections.defaultdict(asyncio.Lock)
@@ -60,10 +60,10 @@ def archive_messages(messages):
         return
     if not isinstance(messages, list):
         messages = [messages]
-        
+
     data = []
     now = datetime.now().isoformat()
-    
+
     for m in messages:
         try:
             # Safe attribute access
@@ -73,19 +73,19 @@ def archive_messages(messages):
             text = getattr(m, 'text', "")
             date_obj = getattr(m, 'date', None)
             sent_date = date_obj.isoformat() if date_obj else None
-            
+
             data.append((c_id, m_id, s_id, text, sent_date, now))
         except Exception as e:
             print(f"Error preparing message {getattr(m, 'id', '?')} for archive: {e}")
-            
+
     if not data:
         return
 
     try:
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
-        c.executemany('''INSERT INTO deleted_messages 
-                         (chat_id, message_id, sender_id, text, sent_date, deleted_at) 
+        c.executemany('''INSERT INTO deleted_messages
+                         (chat_id, message_id, sender_id, text, sent_date, deleted_at)
                          VALUES (?, ?, ?, ?, ?, ?)''', data)
         conn.commit()
         conn.close()
@@ -97,7 +97,7 @@ async def safe_delete(client, chat, messages, dry_run=False):
     """Archives messages then deletes them."""
     if not messages:
         return
-    
+
     if not isinstance(messages, list):
         messages = [messages]
 
@@ -107,7 +107,7 @@ async def safe_delete(client, chat, messages, dry_run=False):
 
     # 1. Archive
     archive_messages(messages)
-    
+
     # 2. Delete
     try:
         await client.delete_messages(chat, messages)
@@ -133,9 +133,9 @@ async def strip_marker_from_last_message(client, chat_id):
 async def main():
     # Initialize DB
     init_db()
-    
+
     args = parse_arguments()
-    
+
     async with TelegramClient(SESSION_NAME, int(API_ID), API_HASH) as client:
         print(f"Connected! (Dry Run: {args.dry_run})")
         print(f"Message backup: {DB_NAME}")
@@ -148,7 +148,7 @@ async def main():
         async def toggle_autosquash(event):
             global AUTOSQUASH_ENABLED
             mode = event.pattern_match.group(1).lower()
-            
+
             if mode == 'on':
                 AUTOSQUASH_ENABLED = True
                 print(">>> AUTOSQUASH ENABLED <<<")
@@ -157,10 +157,10 @@ async def main():
                 AUTOSQUASH_ENABLED = False
                 print(">>> AUTOSQUASH DISABLED <<<")
                 await event.edit("`Autosquash Disabled.`")
-                
+
                 # Cleanup: Strip marker from last message in this chat if exists
                 await strip_marker_from_last_message(client, event.chat_id)
-            
+
             # Delete the status message after a few seconds
             await asyncio.sleep(3)
             await safe_delete(client, event.chat_id, [event.message], dry_run=args.dry_run)
@@ -172,9 +172,9 @@ async def main():
                 n_str = event.pattern_match.group(1)
                 chat = await event.get_chat()
                 chat_name = getattr(chat, 'title', getattr(chat, 'first_name', str(chat.id)))
-                
+
                 messages = []
-                
+
                 if n_str:
                     n = int(n_str)
                     print(f"Command: !squash {n} in {chat_name}")
@@ -195,14 +195,14 @@ async def main():
                             messages.append(msg)
                         else:
                             break
-                            
+
                 if not messages:
                     print("No messages found to squash.")
                     await safe_delete(client, event.chat_id, [event.message], dry_run=args.dry_run)
                     return
 
                 messages.reverse()
-                
+
                 # Cleanup markers
                 cleaned_texts = []
                 for m in messages:
@@ -214,25 +214,25 @@ async def main():
                 target_msg = messages[0]
                 msgs_to_delete = messages[1:]
                 combined_text = "\n".join(cleaned_texts)
-                
+
                 if len(combined_text) > 4096:
                     print(f"Aborting: Combined text length ({len(combined_text)}) exceeds limit.")
                     await safe_delete(client, event.chat_id, [event.message], dry_run=args.dry_run)
                     return
-                
+
                 print(f"Squashing {len(messages)} messages.")
-                
+
                 if not args.dry_run:
                     try:
                         if combined_text != target_msg.text:
                             await target_msg.edit(combined_text)
-                        
+
                         # Add command message to deletion list
                         msgs_to_delete.append(event.message)
-                        
+
                         # Use safe_delete for all
                         await safe_delete(client, chat, msgs_to_delete, dry_run=args.dry_run)
-                        
+
                     except Exception as e:
                         print(f"Failed to squash messages: {e}")
                 else:
@@ -265,8 +265,8 @@ async def main():
 
             if not AUTOSQUASH_ENABLED:
                 return
-            
-            # Dry run handled inside logic via args.dry_run usage in actions if needed, 
+
+            # Dry run handled inside logic via args.dry_run usage in actions if needed,
             # but usually autosquash shouldn't run in dry run mode?
             # The prompt asked for -d arg, which we have.
             if args.dry_run:
@@ -286,19 +286,19 @@ async def main():
                 if prev_msg and prev_msg.out and is_plain_text(prev_msg):
                     if prev_msg.text.endswith(MARKER):
                         should_merge = True
-                
+
                 if should_merge:
                     # MERGE
                     clean_prev_text = prev_msg.text[:-len(MARKER)]
                     new_combined_text = f"{clean_prev_text}\n{event.text}{MARKER}"
-                    
+
                     if len(new_combined_text) <= 4096:
                         try:
                             await prev_msg.edit(new_combined_text)
-                            
+
                             # DELETE with backup
                             await safe_delete(client, event.chat_id, [event.message], dry_run=args.dry_run)
-                            
+
                             print(f"[Autosquash] Merged into message {prev_msg.id}.")
                         except Exception as e:
                             print(f"[Autosquash] Merge failed: {e}. Starting new chain.")
