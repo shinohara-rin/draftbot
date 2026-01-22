@@ -109,6 +109,7 @@ Do not include any prefixes. Just provide the raw text of the response.
                 model=LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 stream=True,
+                max_tokens=1024
               )
               for chunk in response:
                 asyncio.run_coroutine_threadsafe(queue.put(chunk), loop).result()
