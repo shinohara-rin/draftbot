@@ -59,23 +59,33 @@ async def main():
 
             # Create session
             session = PromptSession(key_bindings=kb)
+            
+            # Event for immediate updates
+            update_event = asyncio.Event()
 
             # Hook into buffer changes
-            def on_text_changed(_):
-                state['text'] = session.default_buffer.text
-                state['cursor_pos'] = session.default_buffer.cursor_position
+            def on_change(_):
+                # Signal the sync loop
+                update_event.set()
             
-            session.default_buffer.on_text_changed += on_text_changed
+            session.default_buffer.on_text_changed += on_change
+            session.default_buffer.on_cursor_position_changed += on_change
             
             # Background sync task
             async def sync_loop():
                 try:
+                    # Initial display
+                    update_event.set()
+                    
                     while state['running']:
-                        txt = state['text']
-                        pos = state['cursor_pos']
+                        await update_event.wait()
+                        update_event.clear()
+                        
+                        # Read current state
+                        txt = session.default_buffer.text
+                        pos = session.default_buffer.cursor_position
                         
                         # Insert cursor visual
-                        # Handle case where cursor is at the end
                         if pos >= len(txt):
                             display_text = txt + " █"
                         else:
@@ -86,10 +96,12 @@ async def main():
                                 await event.edit(display_text)
                                 state['last_sent'] = display_text
                             except Exception:
-                                # Ignore rate limits or unchanged content errors
+                                # Ignore rate limits
                                 pass
                         
-                        await asyncio.sleep(0.1) # Throttle updates
+                        # Throttle to avoid flooding (but allow burst of 1)
+                        await asyncio.sleep(0.1)
+                        
                 except asyncio.CancelledError:
                     pass
 
