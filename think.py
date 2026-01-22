@@ -76,7 +76,8 @@ async def main():
             name = getattr(sender, 'first_name', None) or getattr(sender, 'title', None) or str(sender.id)
 
           text = msg.text or "[Media/Empty]"
-          history.append(f"{name}: {text}")
+          ts = msg.date.strftime("%Y-%m-%d %H:%M:%S %Z") if msg.date else "Unknown time"
+          history.append(f"[{ts}] {name}: {text}")
 
         context_str = "\n".join(history)
 
@@ -89,6 +90,7 @@ Here is the conversation context (last 20 messages):
 Instruction:
 Based on the above online chat, think of a quickwitted, clever, or funny response to the last message (or the general situation).
 You can uwuspeak a bit but don't exaggerate your personality, put it mildly. you can use kaomojis freely, but emojis are strictly forbidden.
+Choose a language that matches the predominant language of the chat.
 Do not include any prefixes. Just provide the raw text of the response.
 """
 
