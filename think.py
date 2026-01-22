@@ -116,7 +116,10 @@ async def main():
           sender = await msg.get_sender()
           name = "Unknown"
           if sender:
-            name = getattr(sender, 'first_name', None) or getattr(sender, 'title', None) or str(sender.id)
+            if getattr(sender, 'is_self', False):
+              name = "[Me]"
+            else:
+              name = getattr(sender, 'first_name', None) or getattr(sender, 'title', None) or str(sender.id)
 
           text = msg.text or "[Media/Empty]"
           ts = msg.date.strftime("%Y-%m-%d %H:%M:%S %Z") if msg.date else "Unknown time"
@@ -134,6 +137,7 @@ Instruction:
 Based on the above online chat, think of a quickwitted, clever, or funny response to the last message (or the general situation).
 You can uwuspeak a bit but don't exaggerate your personality, put it mildly. you can use kaomojis freely, but emojis are strictly forbidden.
 Choose a language that matches the predominant language of the chat.
+Generate responses that's not repetitive to your previous responses.
 Do not include any prefixes. Just provide the raw text of the response.
 """
 
