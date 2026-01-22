@@ -1,3 +1,4 @@
 telethon
 python-dotenv
 litellm
+prompt_toolkit
